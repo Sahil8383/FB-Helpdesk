@@ -6,39 +6,10 @@ import User from "@/model/User";
 
 export const options = {
   providers: [
-    GitHubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET,
-
-      async authorize(profile) {
-        await connectDB();
-        console.log(profile)
-        const { name, email } = profile;
-
-        const existingUser = await User.findOne({
-          email,
-        });
-
-        if (existingUser) {
-          return existingUser;
-        }
-
-        const user = new User({
-          name: name,
-          email: email,
-          fb_page: false,
-        });
-
-        try {
-          await user.save();
-          return user;
-        } catch (error) {
-          console.error(error);
-          return null;
-        }
-      }
-
-    }),
+    // GitHubProvider({
+    //   clientId: process.env.GITHUB_CLIENT_ID,
+    //   clientSecret: process.env.GITHUB_CLIENT_SECRET,
+    // }),
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -46,38 +17,39 @@ export const options = {
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        name: {},
         email: {},
       },
-
-      async authorize(credentials) {
-        await connectDB();
-
-        const { name, email } = credentials;
-
-        const existingUser = await User.findOne({
-          email,
-        });
-
-        if (existingUser) {
-          return existingUser;
-        }
-
-        const user = new User({
-          name: name,
-          email: email,
-          fb_page: false,
-        });
-
-        try {
-          await user.save();
-          return user;
-        } catch (error) {
-          console.error(error);
-          return null;
-        }
-      }
     }),
   ],
-  callbacks: {},
+  callbacks: {
+    async session({ session }) {
+      const sessionUser = await User.findOne({ email: session.user.email });
+      session.user.id = sessionUser._id.toString();
+
+      return session;
+    },
+    async signIn({ account, profile, user, credentials }) {
+      try {
+        await connectDB();
+
+        const userExists = await User.findOne({ email: profile.email });
+        console.log(userExists);
+        if (!userExists) {
+          await User.create({
+            email: profile.email,
+            name: profile.name.replace(" ", "").toLowerCase(),
+            image: profile.picture,
+            fb_page: false,
+          });
+        }
+
+        return true
+      } catch (error) {
+        console.log("Error checking if user exists: ", error.message);
+        return false
+      }
+    }
+
+
+  },
 };
